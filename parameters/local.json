@@ -1,0 +1,13 @@
+[
+    {"ParameterKey": "EnvironmentValue", "ParameterValue": "local" },
+    { "ParameterKey": "VpcCidr", "ParameterValue": "10.21.0.0/17" },
+    { "ParameterKey": "DMZSubnetCidrA", "ParameterValue": "10.21.0.0/23" },
+    { "ParameterKey": "DMZSubnetCidrB", "ParameterValue": "10.21.2.0/23" },
+    { "ParameterKey": "DMZSubnetCidrC", "ParameterValue": "10.21.4.0/23" },
+    { "ParameterKey": "WebSubnetCidrA", "ParameterValue": "10.21.10.0/23" },
+    { "ParameterKey": "WebSubnetCidrB", "ParameterValue": "10.21.12.0/23" },
+    { "ParameterKey": "WebSubnetCidrC", "ParameterValue": "10.21.14.0/23" },
+    { "ParameterKey": "AppSubnetCidrA", "ParameterValue": "10.21.20.0/23" },
+    { "ParameterKey": "AppSubnetCidrB", "ParameterValue": "10.21.22.0/23" },
+    { "ParameterKey": "AppSubnetCidrC", "ParameterValue": "10.21.24.0/23" }
+]

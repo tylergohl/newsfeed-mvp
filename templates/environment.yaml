@@ -1,0 +1,538 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Builds a VPC for an environment
+Parameters:
+  VpcCidr:
+    Description: The CIDR IP address for this VPC
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  DMZSubnetCidrA:
+    Description: The CIDR IP address for DMZSubnetA
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  DMZSubnetCidrB:
+    Description: The CIDR IP address for DMZSubnetB
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  DMZSubnetCidrC:
+    Description: The CIDR IP address for DMZSubnetC
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  WebSubnetCidrA:
+    Description: The CIDR IP address for WebSubnetA
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  WebSubnetCidrB:
+    Description: The CIDR IP address for WebSubnetB
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  WebSubnetCidrC:
+    Description: The CIDR IP address for WebSubnetC
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  AppSubnetCidrA:
+    Description: The CIDR IP address for AppSubnetA
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  AppSubnetCidrB:
+    Description: The CIDR IP address for AppSubnetB
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  AppSubnetCidrC:
+    Description: The CIDR IP address for AppSubnetB
+    Type: String
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+  EnvironmentValue:
+    Description: Give the environment name (dev, qa, prod, etc.)
+    Type: String
+  FreeTier:
+    Description: Set to false in order to build NAT gateway and other resources that aren't included in AWS Free Tier
+    Type: String
+    AllowedValues:
+      - true
+      - false
+      - ''
+    Default: true
+
+## Conditions
+
+Conditions:
+  NotFreeTier: !Equals [!Ref FreeTier, false] # Build resources that aren't applicable for free tier (NAT gateway etc)
+
+Resources:
+  ##############
+  #Elastic IP RESOURCES
+  # !!!! WARNING !!!!! Adjusting an existing EIP below will likely cause AWS to want to delete
+  # and recreate the EIP. Please make sure your changes are additive ONLY unless you really mean
+  # to delete something. Using change-set's are *strongly* encouraged.
+  ##############
+  Eip01:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-a-eip"
+    Condition: NotFreeTier
+  Eip02:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-b-eip"
+    Condition: NotFreeTier
+  Eip03:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-c-eip"
+    Condition: NotFreeTier
+  
+  #################
+  #VPC AND SUBNETS
+  #################
+  EnvironmentVpc:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: !Ref VpcCidr
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-vpc"
+  VpcIdParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/vpc-id"
+      Type: String
+      Value: !Ref EnvironmentVpc
+      Description: !Sub "VPC ID for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  DMZSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      MapPublicIpOnLaunch: Yes
+      CidrBlock: !Ref 'DMZSubnetCidrA'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-dmzsubnet-a"
+  
+  DMZSubnetAParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-a"
+      Type: String
+      Value: !Ref DMZSubnetA
+      Description: !Sub "DMZ Subnet ID in AZ A for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  DMZSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      MapPublicIpOnLaunch: Yes
+      CidrBlock: !Ref 'DMZSubnetCidrB'
+      Tags:
+      - Key: Name
+        Value: !Join ['-', [!Ref 'EnvironmentValue',dmzsubnet, b]]
+
+  DMZSubnetBParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-b"
+      Type: String
+      Value: !Ref DMZSubnetB
+      Description: !Sub "DMZ Subnet ID in AZ B for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  DMZSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      MapPublicIpOnLaunch: Yes
+      CidrBlock: !Ref 'DMZSubnetCidrC'
+      Tags:
+      - Key: Name
+        Value: !Join ['-', [!Ref 'EnvironmentValue',dmzsubnet, c]]
+
+  DMZSubnetCParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-c"
+      Type: String
+      Value: !Ref DMZSubnetC
+      Description: !Sub "DMZ Subnet ID in AZ C for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  WebSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'WebSubnetCidrA'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-websubnet-a"
+
+  WebSubnetAParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-a"
+      Type: String
+      Value: !Ref WebSubnetA
+      Description: !Sub "Web Subnet ID in AZ A for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  WebSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'WebSubnetCidrB'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-websubnet-b"
+
+  WebSubnetBParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-b"
+      Type: String
+      Value: !Ref WebSubnetB
+      Description: !Sub "Web Subnet ID in AZ B for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+
+  WebSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'WebSubnetCidrC'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-websubnet-c"
+
+  WebSubnetCParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-c"
+      Type: String
+      Value: !Ref WebSubnetC
+      Description: !Sub "Web Subnet ID in AZ C for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+       
+  AppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'AppSubnetCidrA'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-appsubnet-a"
+
+  AppSubnetAParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-a"
+      Type: String
+      Value: !Ref AppSubnetA
+      Description: !Sub "App Subnet ID in AZ A for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+      
+  AppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'AppSubnetCidrB'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-appsubnet-b"
+
+  AppSubnetBParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-b"
+      Type: String
+      Value: !Ref AppSubnetB
+      Description: !Sub "App Subnet ID in AZ B for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+
+  AppSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
+      VpcId: !Ref 'EnvironmentVpc'
+      CidrBlock: !Ref 'AppSubnetCidrC'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-appsubnet-c"
+
+  AppSubnetCParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-c"
+      Type: String
+      Value: !Ref AppSubnetC
+      Description: !Sub "App Subnet ID in AZ C for ${EnvironmentValue}"
+      Tags:
+        "environment": !Sub "${EnvironmentValue}"
+
+##################
+# Internet Gateway
+##################
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: EnvironmentVpc
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-igw"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref 'EnvironmentVpc'
+      InternetGatewayId: !Ref 'InternetGateway'
+
+############################
+# PUBLIC Route Tables
+############################
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachGateway
+    Properties:
+      VpcId: !Ref 'EnvironmentVpc'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-publicroutetable"
+           
+  PublicRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref 'PublicRouteTable'
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref 'InternetGateway'
+  
+  DMZSubnetARtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PublicRouteToInternet
+    Properties:
+      SubnetId: !Ref 'DMZSubnetA'
+      RouteTableId: !Ref 'PublicRouteTable'
+  
+  DMZSubnetBRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PublicRouteToInternet
+    Properties:
+      SubnetId: !Ref 'DMZSubnetB'
+      RouteTableId: !Ref 'PublicRouteTable'
+  
+  DMZSubnetCRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PublicRouteToInternet
+    Properties:
+      SubnetId: !Ref 'DMZSubnetC'
+      RouteTableId: !Ref 'PublicRouteTable'
+
+#########################
+# NAT GATEWAY
+#########################
+  NatA:
+    DependsOn: DMZSubnetARtAssoc
+    Type: AWS::EC2::NatGateway
+    Condition: NotFreeTier
+    Properties:
+      AllocationId: !GetAtt Eip01.AllocationId
+      SubnetId: !Ref 'DMZSubnetA'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-a"
+        - Key: environment
+          Value: !Ref EnvironmentValue
+  
+  NatB:
+    DependsOn: DMZSubnetBRtAssoc
+    Type: AWS::EC2::NatGateway
+    Condition: NotFreeTier
+    Properties:
+      AllocationId: !GetAtt Eip02.AllocationId
+      SubnetId: !Ref 'DMZSubnetB'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-b"
+        - Key: environment
+          Value: !Ref EnvironmentValue
+  
+  NatC:
+    DependsOn: DMZSubnetCRtAssoc
+    Type: AWS::EC2::NatGateway
+    Condition: NotFreeTier
+    Properties:
+      AllocationId: !GetAtt Eip03.AllocationId
+      SubnetId: !Ref 'DMZSubnetC'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-natgw-az-c"
+        - Key: environment
+          Value: !Ref EnvironmentValue
+
+############################
+# PRIVATE Route Tables
+############################
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'EnvironmentVpc'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-privateroutetable-a"
+  
+  PrivateRouteAToInternet:
+    Type: AWS::EC2::Route
+    Condition: NotFreeTier
+    Properties:
+      RouteTableId: !Ref 'PrivateRouteTableA'
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref 'NatA'
+    
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'EnvironmentVpc'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-privateroutetable-b"
+  
+  PrivateRouteBToInternet:
+    Type: AWS::EC2::Route
+    Condition: NotFreeTier
+    Properties:
+      RouteTableId: !Ref 'PrivateRouteTableB'
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref 'NatB'
+
+  PrivateRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'EnvironmentVpc'
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentValue}-privateroutetable-c"
+  
+  PrivateRouteCToInternet:
+    Type: AWS::EC2::Route
+    Condition: NotFreeTier
+    Properties:
+      RouteTableId: !Ref 'PrivateRouteTableC'
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref 'NatC'
+
+  ############################################    
+  # WEB TIER SUBNETS ROUTE TABLE ASSOCIATIONS
+  #############################################
+  WebPrivateSubnetARtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteAToInternet
+    Properties:
+      SubnetId: !Ref 'WebSubnetA'
+      RouteTableId: !Ref 'PrivateRouteTableA'
+  
+  WebPrivateSubnetBRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteBToInternet
+    Properties:
+      SubnetId: !Ref 'WebSubnetB'
+      RouteTableId: !Ref 'PrivateRouteTableB'
+
+  WebPrivateSubnetCRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteCToInternet
+    Properties:
+      SubnetId: !Ref 'WebSubnetC'
+      RouteTableId: !Ref 'PrivateRouteTableC'
+  
+  ##############################################
+  # APP TIER SUBNET ROUTE TABLE ASSOCIATIONS
+  ##############################################
+  AppPrivateSubnetARtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteAToInternet
+    Properties:
+      SubnetId: !Ref 'AppSubnetA'
+      RouteTableId: !Ref 'PrivateRouteTableA'
+  
+  AppPrivateSubnetBRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteBToInternet
+    Properties:
+      SubnetId: !Ref 'AppSubnetB'
+      RouteTableId: !Ref 'PrivateRouteTableB'
+
+  AppPrivateSubnetCRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    #DependsOn: PrivateRouteCToInternet
+    Properties:
+      SubnetId: !Ref 'AppSubnetC'
+      RouteTableId: !Ref 'PrivateRouteTableC'
+
+  FlowLogRole:
+    Type: AWS::IAM::Role
+    Condition: NotFreeTier
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: SIDcfncisdpwhitepaper
+          Effect: Allow
+          Principal:
+            Service: vpc-flow-logs.amazonaws.com
+          Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: flowlogs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            Effect: Allow
+            Resource: "*"
+
+  ApplicationFlowLog:
+    Type: AWS::EC2::FlowLog
+    Condition: NotFreeTier
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt [FlowLogRole, Arn]
+      LogGroupName: ApplicationFlowLogsGroup
+      ResourceId: !Ref 'EnvironmentVpc'
+      ResourceType: VPC
+      TrafficType: ALL
