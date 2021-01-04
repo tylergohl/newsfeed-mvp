@@ -14,6 +14,7 @@ jobs:
           args: "**/*.yaml"
 
   deploy:
+    needs: [lint] # Wait for lint to complete successfully before deploying
     name: Deploy CF Stack to AWS
     runs-on: ubuntu-latest
     steps:
