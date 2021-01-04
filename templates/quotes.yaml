@@ -36,6 +36,9 @@ Parameters:
       - prod
     Description: The environment the stack is being deployed into.
 
+Conditions:
+  ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
+
 Resources:
 
 ## Launch Config for Quotes ASG
@@ -50,9 +53,27 @@ Resources:
         - !Ref QuotesSecurityGroup
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
-          # add stuff here to install java or whatever 
+          #!/bin/bash 
           echo ${EnvironmentValue}
+
+          # Install pre-reqs
+          sudo yum update -y
+          sudo yum install git -y
+          sudo yum install java-1.8.0-openjdk -y
+
+          cd ~
+          wget https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein
+          chmod a+x lein
+          sudo mv lein /usr/bin
+          lein
+
+          # Build JARs
+          sudo git clone https://github.com/ThoughtWorksInc/infra-problem.git
+          cd ~/infra-problem
+          sudo make libs
+          sudo make clean all
+          sudo mkdir /usr/local/quotes
+          sudo cp ~/infra-problem/build/quotes.jar /usr/local/quotes/quotes.jar
 
 ## ASG
   AutoScalingGroup:
@@ -67,8 +88,8 @@ Resources:
       MinSize: !Ref AsgMinSize
       VPCZoneIdentifier:
       - !Sub "{{resolve:ssm:/${EnvironmentValue}/shared/vpc/web-subnet-a:1}}"
-      - !Sub "{{resolve:ssm:/${EnvironmentValue}/shared/vpc/web-subnet-b:1}}"
-      - !Sub "{{resolve:ssm:/${EnvironmentValue}/shared/vpc/web-subnet-c:1}}"
+      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/shared/vpc/web-subnet-b:1}}", !Ref AWS::NoValue]
+      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/shared/vpc/web-subnet-c:1}}", !Ref AWS::NoValue]       
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentValue}-newsfeed-quotes

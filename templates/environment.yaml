@@ -54,19 +54,11 @@ Parameters:
   EnvironmentValue:
     Description: Give the environment name (dev, qa, prod, etc.)
     Type: String
-  FreeTier:
-    Description: Set to false in order to build NAT gateway and other resources that aren't included in AWS Free Tier
-    Type: String
-    AllowedValues:
-      - true
-      - false
-      - ''
-    Default: true
 
 ## Conditions
 
 Conditions:
-  NotFreeTier: !Equals [!Ref FreeTier, false] # Build resources that aren't applicable for free tier (NAT gateway etc)
+  ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
 
 Resources:
   ##############
@@ -81,21 +73,20 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentValue}-natgw-az-a-eip"
-    Condition: NotFreeTier
   Eip02:
     Type: AWS::EC2::EIP
     Properties:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentValue}-natgw-az-b-eip"
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
   Eip03:
     Type: AWS::EC2::EIP
     Properties:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentValue}-natgw-az-c-eip"
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
   
   #################
   #VPC AND SUBNETS
@@ -142,6 +133,7 @@ Resources:
       
   DMZSubnetB:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -153,6 +145,7 @@ Resources:
 
   DMZSubnetBParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-b"
       Type: String
@@ -163,6 +156,7 @@ Resources:
       
   DMZSubnetC:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -174,6 +168,7 @@ Resources:
 
   DMZSubnetCParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-c"
       Type: String
@@ -204,6 +199,7 @@ Resources:
       
   WebSubnetB:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -214,6 +210,7 @@ Resources:
 
   WebSubnetBParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-b"
       Type: String
@@ -224,6 +221,7 @@ Resources:
 
   WebSubnetC:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -234,6 +232,7 @@ Resources:
 
   WebSubnetCParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-c"
       Type: String
@@ -264,6 +263,7 @@ Resources:
       
   AppSubnetB:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -274,6 +274,7 @@ Resources:
 
   AppSubnetBParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-b"
       Type: String
@@ -284,6 +285,7 @@ Resources:
 
   AppSubnetC:
     Type: AWS::EC2::Subnet
+    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -294,6 +296,7 @@ Resources:
 
   AppSubnetCParam:
     Type: AWS::SSM::Parameter
+    Condition: ProdLikeEnvironment
     Properties:
       Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-c"
       Type: String
@@ -347,6 +350,7 @@ Resources:
   
   DMZSubnetBRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     DependsOn: PublicRouteToInternet
     Properties:
       SubnetId: !Ref 'DMZSubnetB'
@@ -354,6 +358,7 @@ Resources:
   
   DMZSubnetCRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     DependsOn: PublicRouteToInternet
     Properties:
       SubnetId: !Ref 'DMZSubnetC'
@@ -365,7 +370,6 @@ Resources:
   NatA:
     DependsOn: DMZSubnetARtAssoc
     Type: AWS::EC2::NatGateway
-    Condition: NotFreeTier
     Properties:
       AllocationId: !GetAtt Eip01.AllocationId
       SubnetId: !Ref 'DMZSubnetA'
@@ -378,7 +382,7 @@ Resources:
   NatB:
     DependsOn: DMZSubnetBRtAssoc
     Type: AWS::EC2::NatGateway
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
     Properties:
       AllocationId: !GetAtt Eip02.AllocationId
       SubnetId: !Ref 'DMZSubnetB'
@@ -391,7 +395,7 @@ Resources:
   NatC:
     DependsOn: DMZSubnetCRtAssoc
     Type: AWS::EC2::NatGateway
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
     Properties:
       AllocationId: !GetAtt Eip03.AllocationId
       SubnetId: !Ref 'DMZSubnetC'
@@ -414,7 +418,6 @@ Resources:
   
   PrivateRouteAToInternet:
     Type: AWS::EC2::Route
-    Condition: NotFreeTier
     Properties:
       RouteTableId: !Ref 'PrivateRouteTableA'
       DestinationCidrBlock: 0.0.0.0/0
@@ -422,6 +425,7 @@ Resources:
     
   PrivateRouteTableB:
     Type: AWS::EC2::RouteTable
+    Condition: ProdLikeEnvironment
     Properties:
       VpcId: !Ref 'EnvironmentVpc'
       Tags:
@@ -430,7 +434,7 @@ Resources:
   
   PrivateRouteBToInternet:
     Type: AWS::EC2::Route
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
     Properties:
       RouteTableId: !Ref 'PrivateRouteTableB'
       DestinationCidrBlock: 0.0.0.0/0
@@ -438,6 +442,7 @@ Resources:
 
   PrivateRouteTableC:
     Type: AWS::EC2::RouteTable
+    Condition: ProdLikeEnvironment
     Properties:
       VpcId: !Ref 'EnvironmentVpc'
       Tags:
@@ -446,7 +451,7 @@ Resources:
   
   PrivateRouteCToInternet:
     Type: AWS::EC2::Route
-    Condition: NotFreeTier
+    Condition: ProdLikeEnvironment
     Properties:
       RouteTableId: !Ref 'PrivateRouteTableC'
       DestinationCidrBlock: 0.0.0.0/0
@@ -464,6 +469,7 @@ Resources:
   
   WebPrivateSubnetBRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     #DependsOn: PrivateRouteBToInternet
     Properties:
       SubnetId: !Ref 'WebSubnetB'
@@ -471,6 +477,7 @@ Resources:
 
   WebPrivateSubnetCRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     #DependsOn: PrivateRouteCToInternet
     Properties:
       SubnetId: !Ref 'WebSubnetC'
@@ -488,6 +495,7 @@ Resources:
   
   AppPrivateSubnetBRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     #DependsOn: PrivateRouteBToInternet
     Properties:
       SubnetId: !Ref 'AppSubnetB'
@@ -495,6 +503,7 @@ Resources:
 
   AppPrivateSubnetCRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ProdLikeEnvironment
     #DependsOn: PrivateRouteCToInternet
     Properties:
       SubnetId: !Ref 'AppSubnetC'
@@ -502,7 +511,6 @@ Resources:
 
   FlowLogRole:
     Type: AWS::IAM::Role
-    Condition: NotFreeTier
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -529,10 +537,25 @@ Resources:
 
   ApplicationFlowLog:
     Type: AWS::EC2::FlowLog
-    Condition: NotFreeTier
     Properties:
       DeliverLogsPermissionArn: !GetAtt [FlowLogRole, Arn]
       LogGroupName: ApplicationFlowLogsGroup
       ResourceId: !Ref 'EnvironmentVpc'
       ResourceType: VPC
       TrafficType: ALL
+
+  ##############################################
+  # VPC Endpoints
+  ##############################################
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref EnvironmentVpc
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTableA
+        - !If [ProdLikeEnvironment, !Ref PrivateRouteTableB, !Ref AWS::NoValue]
+        - !If [ProdLikeEnvironment, !Ref PrivateRouteTableC, !Ref AWS::NoValue]
