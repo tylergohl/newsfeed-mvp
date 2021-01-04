@@ -45,7 +45,7 @@ Resources:
   ASGLaunchConfig:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
-      # IamInstanceProfile: !Sub "{{resolve:ssm:/shared/iam/instance-profiles/ec2-base:1}}" # TODO: Add Back in after defining IamInstanceProfile
+      IamInstanceProfile: "{{resolve:ssm:/shared/iam/instance-profiles/ec2-base:1}}"
       ImageId: !Ref InstanceAmi
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
@@ -73,7 +73,18 @@ Resources:
           sudo make libs
           sudo make clean all
           sudo mkdir /usr/local/quotes
-          sudo cp ~/infra-problem/build/quotes.jar /usr/local/quotes/quotes.jar
+          sudo mv ~/infra-problem/build/quotes.jar /usr/local/quotes/quotes.jar
+
+          # Set up service scripts / start service
+          cd ~
+          sudo git clone https://github.com/tylergohl/newsfeed-mvp.git
+          cp ~/newsfeed-mvp/services/quotes.service /etc/systemd/system/quotes.service
+          cp ~/newsfeed-mvp/services/quotes.sh /usr/local/bin/quotes.sh
+          sudo chmod u+x /usr/local/bin/quotes.sh
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable quotes.service
+          sudo systemctl start quotes
 
 ## ASG
   AutoScalingGroup:
