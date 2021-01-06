@@ -63,3 +63,10 @@ jobs:
           template: ./templates/ec2.yaml
           parameter-overrides: "ServiceName=newsfeed,ListenerRulePriority=200"
           no-fail-on-empty-changeset: "1"
+      - name: Deploy Front-end Stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: local-newsfeed-front-end
+          template: ./templates/ec2.yaml
+          parameter-overrides: "ServiceName=front-end,ListenerRulePriority=100"
+          no-fail-on-empty-changeset: "1"
