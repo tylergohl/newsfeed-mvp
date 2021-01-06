@@ -50,6 +50,18 @@ Resources:
                       - Name
                   StringEquals:
                     aws:ARN: ${ec2:SourceInstanceARN} # Only allow the instance to modify tags on itself
+        - PolicyName: ssm-get-parameter-decrypt
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: "arn:aws:ssm:*:*:parameter/*/newsfeed/*"
+              - Effect: Allow
+                Action: kms:decrypt
+                Resource: "*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 

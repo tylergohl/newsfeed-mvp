@@ -1,0 +1,13 @@
+[Unit]
+Description=Static-assets
+
+[Service]
+User=ec2-user
+WorkingDirectory=/usr/local/static-assets
+ExecStart=/usr/bin/python3 /usr/local/static-assets/serve.py
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

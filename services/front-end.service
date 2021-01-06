@@ -4,6 +4,7 @@ Description=Front-end
 [Service]
 User=ec2-user
 WorkingDirectory=/usr/local/front-end
+EnvironmentFile=/etc/front.end/front.end.conf
 ExecStart=/bin/bash /usr/local/bin/front-end.sh
 SuccessExitStatus=143
 TimeoutStopSec=10

@@ -45,6 +45,7 @@ Parameters:
 Conditions:
   ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
   IsFront-End: !Equals [!Ref ServiceName, front-end]
+  NotFront-End: !Not [!Equals [!Ref ServiceName, front-end]]
 
 Resources:
 
@@ -86,6 +87,31 @@ Resources:
           cp ~/newsfeed-mvp/services/${ServiceName}.service /etc/systemd/system/${ServiceName}.service
           cp ~/newsfeed-mvp/services/${ServiceName}.sh /usr/local/bin/${ServiceName}.sh
           sudo chmod u+x /usr/local/bin/${ServiceName}.sh
+
+          # Additional steps for front-end / static assets service
+          if [ ${ServiceName} == 'front-end' ]; then
+            # Install python3 for static assets
+            sudo yum install python3 -y
+
+            # Grab newsfeed token and decrypt it
+            token=$(aws ssm get-parameters --names /local/newsfeed/newsfeed-token --with-decryption --region ${AWS::Region} --output text --query "Parameters[].Value")
+
+            # build environment variable file
+            mkdir /etc/front.end
+            echo "STATIC_URL=http://127.0.0.1:8000" >> /etc/front.end/front.end.conf
+            echo "QUOTE_SERVICE_URL=http://quotes.${EnvironmentValue}.newsfeed.internal:8080" >> /etc/front.end/front.end.conf
+            echo "NEWSFEED_SERVICE_URL=http://newsfeed.${EnvironmentValue}.newsfeed.internal:8080" >> /etc/front.end/front.end.conf
+            echo "NEWSFEED_SERVICE_TOKEN=$token" >> /etc/front.end/front.end.conf
+
+            # Set up service for static assets
+            mkdir /usr/local/static-assets
+            cp -R ~/infra-problem/public /usr/local/static-assets/
+            cp ~/newsfeed-mvp/services/static-assets.service /etc/systemd/system/static-assets.service
+
+            sudo systemctl daemon-reload
+            sudo systemctl enable static-assets.service
+            sudo systemctl start static-assets
+          fi
 
           sudo systemctl daemon-reload
           sudo systemctl enable ${ServiceName}.service
@@ -149,6 +175,7 @@ Resources:
 
   ListenerHTTP:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: NotFront-End
     Properties:
       Actions:
         - Type: forward
@@ -157,7 +184,7 @@ Resources:
         - Field: host-header
           Values:
             - !Sub "${ServiceName}.${EnvironmentValue}.newsfeed.internal"
-      ListenerArn: !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/ext-alb-listener-http-arn:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"]
+      ListenerArn: !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"
       Priority: !Ref ListenerRulePriority
 
   ### Security Groups
