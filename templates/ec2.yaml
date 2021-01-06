@@ -10,10 +10,6 @@ Parameters:
     Type: String
     Default: t3.micro
     Description: Select instance type.
-  #KeyName: 
-  #  Type: AWS::EC2::KeyPair::KeyName
-  #  Default: newsfeed-keypair
-  #  Description: Enter the KeyPair name used for the instance.
   AsgDesiredCapacity: 
     Type: Number
     Default: 1
@@ -24,7 +20,7 @@ Parameters:
     Description: The minimum size of the Auto Scaling group.
   AsgMaxSize: 
     Type: Number
-    Default: 1
+    Default: 6
     Description: The maximum size of the Auto Scaling group.
   ServiceName:
     Type: String
@@ -48,6 +44,7 @@ Parameters:
 
 Conditions:
   ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
+  IsFront-End: !Equals [!Ref ServiceName, front-end]
 
 Resources:
 
@@ -58,7 +55,6 @@ Resources:
       IamInstanceProfile: !Sub "{{resolve:ssm:/${EnvironmentValue}/iam/instance-profiles/ec2-base:1}}"
       ImageId: !Ref InstanceAmi
       InstanceType: !Ref InstanceType
-      #KeyName: !Ref KeyName
       SecurityGroups: 
         - !Ref SecurityGroup
       UserData:
@@ -109,9 +105,9 @@ Resources:
       MaxSize: !Ref AsgMaxSize
       MinSize: !Ref AsgMinSize
       VPCZoneIdentifier:
-      - !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-a:1}}"
-      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-b:1}}", !Ref AWS::NoValue]
-      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-c:1}}", !Ref AWS::NoValue]       
+      - !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-a:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/app-subnet-a:1}}"] 
+      - !If [ProdLikeEnvironment, !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-b:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/app-subnet-b:1}}"], !Ref AWS::NoValue]  
+      - !If [ProdLikeEnvironment, !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-c:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/app-subnet-c:1}}"], !Ref AWS::NoValue]  
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentValue}-newsfeed-${ServiceName}
@@ -161,7 +157,7 @@ Resources:
         - Field: host-header
           Values:
             - !Sub "${ServiceName}.${EnvironmentValue}.newsfeed.internal"
-      ListenerArn: !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"
+      ListenerArn: !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/ext-alb-listener-http-arn:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"]
       Priority: !Ref ListenerRulePriority
 
   ### Security Groups
@@ -176,7 +172,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
-          SourceSecurityGroupId: !Sub "{{resolve:ssm:/${EnvironmentValue}/security-groups/int-alb-sg-id:1}}"
+          SourceSecurityGroupId: !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/security-groups/ext-alb-sg-id:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/security-groups/int-alb-sg-id:1}}"]
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentValue}-newsfeed-${ServiceName}-sg"

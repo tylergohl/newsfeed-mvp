@@ -4,7 +4,7 @@ Description=Front-end
 [Service]
 User=ec2-user
 WorkingDirectory=/usr/local/front-end
-ExecStart=/bin/bash /usr/local/bin/frontend.sh
+ExecStart=/bin/bash /usr/local/bin/front-end.sh
 SuccessExitStatus=143
 TimeoutStopSec=10
 Restart=on-failure
