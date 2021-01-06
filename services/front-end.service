@@ -1,10 +1,10 @@
 [Unit]
-Description=Newsfeed
+Description=Front-end
 
 [Service]
 User=ec2-user
-WorkingDirectory=/usr/local/newsfeed
-ExecStart=/bin/bash /usr/local/bin/newsfeed.sh
+WorkingDirectory=/usr/local/front-end
+ExecStart=/bin/bash /usr/local/bin/frontend.sh
 SuccessExitStatus=143
 TimeoutStopSec=10
 Restart=on-failure

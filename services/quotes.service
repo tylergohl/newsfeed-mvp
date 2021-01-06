@@ -3,10 +3,7 @@ Description=Quotes
 
 [Service]
 User=ec2-user
-#change this directory into your workspace
-#mkdir workspace 
 WorkingDirectory=/usr/local/quotes
-#path to the executable bash script which executes the jar file
 ExecStart=/bin/bash /usr/local/bin/quotes.sh
 SuccessExitStatus=143
 TimeoutStopSec=10
