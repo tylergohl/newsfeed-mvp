@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template that creates ASG / security groups for Quotes service
+
+Parameters:
+  InstanceAmi: 
+    Type : AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 # Grabs the latest Amazon Linux 2 AMI - this may or may not be desirable in a prod scenario.  We could override this with a parameter file for prod or statically assign an SSM parameter
+    Description: The AMI ID for the instance
+  InstanceType: 
+    Type: String
+    Default: t3.micro
+    Description: Select instance type.
+  #KeyName: 
+  #  Type: AWS::EC2::KeyPair::KeyName
+  #  Default: newsfeed-keypair
+  #  Description: Enter the KeyPair name used for the instance.
+  AsgDesiredCapacity: 
+    Type: Number
+    Default: 1
+    Description: The desired capacity is the initial capacity of the Auto Scaling group at the time of its creation and the capacity it attempts to maintain.
+  AsgMinSize: 
+    Type: Number
+    Default: 0
+    Description: The minimum size of the Auto Scaling group.
+  AsgMaxSize: 
+    Type: Number
+    Default: 1
+    Description: The maximum size of the Auto Scaling group.
+  ServiceName:
+    Type: String
+    Description: The service the template is building
+    AllowedValues:
+      - newsfeed
+      - quotes
+      - front-end
+  ListenerRulePriority:
+    Type: String
+    Description: Priority of the listener rule that will be added to the ALB (e.g., 100, 200, etc)
+  EnvironmentValue:
+    Type: String
+    Default: local
+    AllowedValues:
+      - local
+      - dev
+      - qa
+      - prod
+    Description: The environment the stack is being deployed into.
+
+Conditions:
+  ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
+
+Resources:
+
+## Launch Config for Quotes ASG
+  ASGLaunchConfig:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      IamInstanceProfile: !Sub "{{resolve:ssm:/${EnvironmentValue}/iam/instance-profiles/ec2-base:1}}"
+      ImageId: !Ref InstanceAmi
+      InstanceType: !Ref InstanceType
+      #KeyName: !Ref KeyName
+      SecurityGroups: 
+        - !Ref SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash 
+
+          # Install pre-reqs
+          sudo yum update -y
+          sudo yum install git -y
+          sudo yum install java-1.8.0-openjdk -y
+
+          cd ~
+          wget https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein
+          chmod a+x lein
+          sudo mv lein /usr/bin
+          lein
+
+          # Build JARs
+          sudo git clone https://github.com/ThoughtWorksInc/infra-problem.git
+          cd ~/infra-problem
+          sudo make libs
+          sudo make clean all
+          sudo mkdir /usr/local/${ServiceName}
+          sudo mv ~/infra-problem/build/${ServiceName}.jar /usr/local/${ServiceName}/${ServiceName}.jar
+
+          # Set up service scripts / start service
+          cd ~
+          sudo git clone https://github.com/tylergohl/newsfeed-mvp.git
+          cp ~/newsfeed-mvp/services/${ServiceName}.service /etc/systemd/system/${ServiceName}.service
+          cp ~/newsfeed-mvp/services/${ServiceName}.sh /usr/local/bin/${ServiceName}.sh
+          sudo chmod u+x /usr/local/bin/${ServiceName}.sh
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable ${ServiceName}.service
+          sudo systemctl start ${ServiceName}
+
+## ASG
+  AutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      Cooldown: '30'
+      DesiredCapacity: !Ref AsgDesiredCapacity
+      HealthCheckGracePeriod: 300
+      HealthCheckType: EC2
+      LaunchConfigurationName: !Ref ASGLaunchConfig
+      TargetGroupARNs:
+        - !Ref TargetGroupHTTP
+      MaxSize: !Ref AsgMaxSize
+      MinSize: !Ref AsgMinSize
+      VPCZoneIdentifier:
+      - !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-a:1}}"
+      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-b:1}}", !Ref AWS::NoValue]
+      - !If [ProdLikeEnvironment, !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/web-subnet-c:1}}", !Ref AWS::NoValue]       
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentValue}-newsfeed-${ServiceName}
+          PropagateAtLaunch: True
+        - Key: environment
+          Value: !Sub ${EnvironmentValue}
+          PropagateAtLaunch: True
+        - Key: role
+          Value: app
+          PropagateAtLaunch: True
+        - Key: service
+          Value: !Ref ServiceName
+          PropagateAtLaunch: True
+
+## Target Group
+  TargetGroupHTTP:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /ping
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      Name: !Sub "${EnvironmentValue}-${ServiceName}"
+      Port: 8080
+      Protocol: HTTP
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-${ServiceName}"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '60'
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/vpc-id:1}}"
+
+## ALB rules
+
+  ListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupHTTP
+      Conditions:
+        - Field: host-header
+          Values:
+            - !Sub "${ServiceName}.${EnvironmentValue}.newsfeed.internal"
+      ListenerArn: !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"
+      Priority: !Ref ListenerRulePriority
+
+  ### Security Groups
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${ServiceName} Security Group"
+      GroupName: !Sub "${EnvironmentValue}-newsfeed-${ServiceName}-sg"
+      VpcId: !Sub "{{resolve:ssm:/${EnvironmentValue}/vpc/vpc-id:1}}"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Sub "{{resolve:ssm:/${EnvironmentValue}/security-groups/int-alb-sg-id:1}}"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentValue}-newsfeed-${ServiceName}-sg"
+        - Key: environment
+          Value: !Ref EnvironmentValue
+        - Key: role
+          Value: app
+        - Key: service
+          Value: !Ref ServiceName
+
+  # Quotes service security group parameter (for reference by other templates)
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: !Sub "${EnvironmentValue} newsfeed ${ServiceName} security group id"
+      Name: !Sub "/${EnvironmentValue}/newsfeed/security-groups/newsfeed-${ServiceName}-sg-id" 
+      Value: !Ref SecurityGroup
+      Type: String

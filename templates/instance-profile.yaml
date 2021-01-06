@@ -63,7 +63,7 @@ Resources:
   InstanceProfileParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: /shared/iam/instance-profiles/ec2-base
+      Name: !Sub "/${EnvironmentValue}/iam/instance-profiles/ec2-base"
       Type: String
       Value: !Ref EC2BaseInstanceProfile
       Description: !Sub "${EnvironmentValue} ec2-base instance profile"

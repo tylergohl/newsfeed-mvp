@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Builds a VPC for an environment
+Description: Builds a VPC and internal route 53 zone for an environment
 Parameters:
   VpcCidr:
     Description: The CIDR IP address for this VPC
@@ -103,7 +103,7 @@ Resources:
   VpcIdParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/vpc-id"
+      Name: !Sub "/${EnvironmentValue}/vpc/vpc-id"
       Type: String
       Value: !Ref EnvironmentVpc
       Description: !Sub "VPC ID for ${EnvironmentValue}"
@@ -124,7 +124,7 @@ Resources:
   DMZSubnetAParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-a"
+      Name: !Sub "/${EnvironmentValue}/vpc/dmz-subnet-a"
       Type: String
       Value: !Ref DMZSubnetA
       Description: !Sub "DMZ Subnet ID in AZ A for ${EnvironmentValue}"
@@ -133,7 +133,6 @@ Resources:
       
   DMZSubnetB:
     Type: AWS::EC2::Subnet
-    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -145,9 +144,8 @@ Resources:
 
   DMZSubnetBParam:
     Type: AWS::SSM::Parameter
-    Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-b"
+      Name: !Sub "/${EnvironmentValue}/vpc/dmz-subnet-b"
       Type: String
       Value: !Ref DMZSubnetB
       Description: !Sub "DMZ Subnet ID in AZ B for ${EnvironmentValue}"
@@ -156,7 +154,6 @@ Resources:
       
   DMZSubnetC:
     Type: AWS::EC2::Subnet
-    Condition: ProdLikeEnvironment
     Properties:
       AvailabilityZone: !Select ['2', !GetAZs {Ref: 'AWS::Region'}]
       VpcId: !Ref 'EnvironmentVpc'
@@ -168,9 +165,8 @@ Resources:
 
   DMZSubnetCParam:
     Type: AWS::SSM::Parameter
-    Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/dmz-subnet-c"
+      Name: !Sub "/${EnvironmentValue}/vpc/dmz-subnet-c"
       Type: String
       Value: !Ref DMZSubnetC
       Description: !Sub "DMZ Subnet ID in AZ C for ${EnvironmentValue}"
@@ -190,7 +186,7 @@ Resources:
   WebSubnetAParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-a"
+      Name: !Sub "/${EnvironmentValue}/vpc/web-subnet-a"
       Type: String
       Value: !Ref WebSubnetA
       Description: !Sub "Web Subnet ID in AZ A for ${EnvironmentValue}"
@@ -212,7 +208,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-b"
+      Name: !Sub "/${EnvironmentValue}/vpc/web-subnet-b"
       Type: String
       Value: !Ref WebSubnetB
       Description: !Sub "Web Subnet ID in AZ B for ${EnvironmentValue}"
@@ -234,7 +230,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/web-subnet-c"
+      Name: !Sub "/${EnvironmentValue}/vpc/web-subnet-c"
       Type: String
       Value: !Ref WebSubnetC
       Description: !Sub "Web Subnet ID in AZ C for ${EnvironmentValue}"
@@ -254,7 +250,7 @@ Resources:
   AppSubnetAParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-a"
+      Name: !Sub "/${EnvironmentValue}/vpc/app-subnet-a"
       Type: String
       Value: !Ref AppSubnetA
       Description: !Sub "App Subnet ID in AZ A for ${EnvironmentValue}"
@@ -276,7 +272,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-b"
+      Name: !Sub "/${EnvironmentValue}/vpc/app-subnet-b"
       Type: String
       Value: !Ref AppSubnetB
       Description: !Sub "App Subnet ID in AZ B for ${EnvironmentValue}"
@@ -298,7 +294,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Condition: ProdLikeEnvironment
     Properties:
-      Name: !Sub "/${EnvironmentValue}/shared/vpc/app-subnet-c"
+      Name: !Sub "/${EnvironmentValue}/vpc/app-subnet-c"
       Type: String
       Value: !Ref AppSubnetC
       Description: !Sub "App Subnet ID in AZ C for ${EnvironmentValue}"
@@ -350,7 +346,6 @@ Resources:
   
   DMZSubnetBRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Condition: ProdLikeEnvironment
     DependsOn: PublicRouteToInternet
     Properties:
       SubnetId: !Ref 'DMZSubnetB'
@@ -358,7 +353,6 @@ Resources:
   
   DMZSubnetCRtAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Condition: ProdLikeEnvironment
     DependsOn: PublicRouteToInternet
     Properties:
       SubnetId: !Ref 'DMZSubnetC'
@@ -559,3 +553,25 @@ Resources:
         - !Ref PrivateRouteTableA
         - !If [ProdLikeEnvironment, !Ref PrivateRouteTableB, !Ref AWS::NoValue]
         - !If [ProdLikeEnvironment, !Ref PrivateRouteTableC, !Ref AWS::NoValue]
+
+## Route 53 Internal Hosted Zone
+
+  HostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Properties:
+      HostedZoneConfig:
+        Comment: !Sub "Internal DNS hosted zone for ${EnvironmentValue}"
+      Name: !Sub "${EnvironmentValue}.newsfeed.internal"
+      VPCs:
+        - VPCId: !Ref EnvironmentVpc
+          VPCRegion: !Ref 'AWS::Region'
+
+## Route 53 IHZ Parameter ##
+
+  HostedZoneId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: !Sub "${EnvironmentValue}.newsfeed.internal HostedZoneId"
+      Name: !Sub "/${EnvironmentValue}/dns/${EnvironmentValue}.newsfeed.internal-HostedZoneId"
+      Value: !Ref HostedZone
+      Type: String

@@ -1,0 +1,15 @@
+[Unit]
+Description=Newsfeed
+
+[Service]
+User=ec2-user
+WorkingDirectory=/usr/local/newsfeed
+#path to the executable bash script which executes the jar file
+ExecStart=/bin/bash /usr/local/bin/newsfeed.sh
+SuccessExitStatus=143
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

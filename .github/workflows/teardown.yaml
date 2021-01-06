@@ -6,18 +6,42 @@ jobs:
   teardown:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete CF Stack
-        uses: tylergohl/action-aws-cli@main
-        with:
-          args: cloudformation delete-stack --stack-name vpc-stack
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-west-2"
       - name: Delete quotes stack
         uses: tylergohl/action-aws-cli@main
         with:
           args: cloudformation delete-stack --stack-name local-newsfeed-quotes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-west-2"
+      - name: Delete newsfeed stack
+        uses: tylergohl/action-aws-cli@main
+        with:
+          args: cloudformation delete-stack --stack-name local-newsfeed-newsfeed
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-west-2"
+      - name: Delete ALB stack
+        uses: tylergohl/action-aws-cli@main
+        with:
+          args: cloudformation delete-stack --stack-name local-alb
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-west-2"
+      - name: Delete CF Stack
+        uses: tylergohl/action-aws-cli@main
+        with:
+          args: cloudformation delete-stack --stack-name local-vpc
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-west-2"
+      - name: Delete IAM stack
+        uses: tylergohl/action-aws-cli@main
+        with:
+          args: cloudformation delete-stack --stack-name local-ec2-base-instance-profile
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

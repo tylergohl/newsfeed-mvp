@@ -38,14 +38,28 @@ jobs:
       - name: Deploy VPC Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: vpc-stack
+          name: local-vpc
           template: ./templates/environment.yaml
           parameter-overrides: file://${{ github.workspace }}/parameters/local.json
+          no-fail-on-empty-changeset: "1"
+      - name: Deploy ALB Stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: local-alb
+          template: ./templates/alb.yaml
+          #parameter-overrides: file://${{ github.workspace }}/parameters/local.json
           no-fail-on-empty-changeset: "1"
       - name: Deploy Quotes Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
           name: local-newsfeed-quotes
-          template: ./templates/quotes.yaml
-          #parameter-overrides: file://${{ github.workspace }}/parameters/local.json
+          template: ./templates/ec2.yaml
+          parameter-overrides: "ServiceName=quotes,ListenerRulePriority=100"
+          no-fail-on-empty-changeset: "1"
+      - name: Deploy Newsfeed Stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: local-newsfeed-newsfeed
+          template: ./templates/ec2.yaml
+          parameter-overrides: "ServiceName=newsfeed,ListenerRulePriority=200"
           no-fail-on-empty-changeset: "1"
