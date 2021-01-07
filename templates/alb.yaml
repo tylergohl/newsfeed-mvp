@@ -171,7 +171,7 @@ Resources:
       Value: !GetAtt InternalAlb.CanonicalHostedZoneID
       Type: String
 
- # Internalk ALB Listener HTTP - Default Action
+ # Internal ALB Listener HTTP - Default Action
   InternalAlbListenerHTTP:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     Properties:

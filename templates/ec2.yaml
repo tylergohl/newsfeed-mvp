@@ -45,7 +45,6 @@ Parameters:
 Conditions:
   ProdLikeEnvironment: !Or [!Equals [!Ref EnvironmentValue, prod], !Equals [!Ref EnvironmentValue, qa]] # Used to limit cost / complexity of lower level environments (local, dev) but make QA as prod like as possible
   IsFront-End: !Equals [!Ref ServiceName, front-end]
-  NotFront-End: !Not [!Equals [!Ref ServiceName, front-end]]
 
 Resources:
 
@@ -105,7 +104,7 @@ Resources:
 
             # Set up service for static assets
             mkdir /usr/local/static-assets
-            cp -R ~/infra-problem/public /usr/local/static-assets/
+            cp -R ~/infra-problem/front-end/public/. /usr/local/static-assets/
             cp ~/newsfeed-mvp/services/static-assets.service /etc/systemd/system/static-assets.service
 
             sudo systemctl daemon-reload
@@ -175,16 +174,15 @@ Resources:
 
   ListenerHTTP:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Condition: NotFront-End
     Properties:
       Actions:
         - Type: forward
           TargetGroupArn: !Ref TargetGroupHTTP
       Conditions:
-        - Field: host-header
+        - Field: !If [IsFront-End, path-pattern, host-header]
           Values:
-            - !Sub "${ServiceName}.${EnvironmentValue}.newsfeed.internal"
-      ListenerArn: !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"
+            - !If [IsFront-End, "*", !Sub "${ServiceName}.${EnvironmentValue}.newsfeed.internal"]
+      ListenerArn:  !If [IsFront-End, !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/ext-alb-listener-http-arn:1}}", !Sub "{{resolve:ssm:/${EnvironmentValue}/alb/int-alb-listener-http-arn:1}}"]
       Priority: !Ref ListenerRulePriority
 
   ### Security Groups
