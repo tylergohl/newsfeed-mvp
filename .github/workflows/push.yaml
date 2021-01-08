@@ -12,6 +12,34 @@ jobs:
         uses: scottbrenner/cfn-lint-action@master
         with:
           args: "**/*.yaml"
+  
+  set-token:
+    runs-on: ubuntu-latest
+    container: amazon/aws-cli:2.1.15
+    
+    steps:     
+      - name: Check and set newsfeed token parameter
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-west-2
+          NEWSFEED_TOKEN: ${{ secrets.NEWSFEED_TOKEN }}
+        run: |
+          token=$(aws ssm get-parameters \
+            --names /local/newsfeed/newsfeed-token \
+            --with-decryption \
+            --output text --query "Parameters[].Value")
+          if [ -z "$token" ]; then
+            aws ssm put-parameter --type SecureString --name '/local/newsfeed/newsfeed-token' --value "$NEWSFEED_TOKEN"
+          else
+            if [ $token != $NEWSFEED_TOKEN ]; then
+              echo "SSM Parameter for token exists, but is not the same as environment variable provided token - recreating parameter."
+              aws ssm delete-parameter --name '/local/newsfeed/newsfeed-token'
+              aws ssm put-parameter --type SecureString --name '/local/newsfeed/newsfeed-token' --value "$NEWSFEED_TOKEN"
+            else
+              echo "Newsfeed token SSM parameter already exists."
+            fi
+          fi
 
   deploy:
     needs: [lint] # Wait for lint to complete successfully before deploying
