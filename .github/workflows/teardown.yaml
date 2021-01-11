@@ -3,6 +3,7 @@ name: teardown
 on: workflow_dispatch
 env:
   AWS_DEFAULT_REGION: us-west-2
+  ENVIRONMENT: local
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -13,10 +14,10 @@ jobs:
     steps:     
       - name: Delete stacks
         run: |
-          aws cloudformation delete-stack --stack-name local-newsfeed-front-end
-          aws cloudformation delete-stack --stack-name local-newsfeed-quotes
-          aws cloudformation delete-stack --stack-name local-newsfeed-newsfeed
-          aws cloudformation delete-stack --stack-name local-alb
-          aws cloudformation delete-stack --stack-name local-vpc
-          aws cloudformation delete-stack --stack-name local-ec2-base-instance-profile
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-front-end
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-quotes
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-newsfeed
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-alb
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-vpc
+          aws cloudformation delete-stack --stack-name $ENVIRONMENT-ec2-base-instance-profile
           aws ssm delete-parameter --name "/$ENVIRONMENT/newsfeed/newsfeed-token"

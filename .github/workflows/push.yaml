@@ -3,6 +3,7 @@ name: push
 on: [push]
 env:
   AWS_DEFAULT_REGION: us-west-2
+  ENVIRONMENT: local
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   NEWSFEED_TOKEN: ${{ secrets.NEWSFEED_TOKEN }}

@@ -3,8 +3,6 @@
 
 ## Getting Started
 
-<br>
-
 ### **Prerequisites**
 
 * AWS Account
