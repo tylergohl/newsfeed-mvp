@@ -14,10 +14,10 @@ jobs:
     steps:     
       - name: Delete stacks
         run: |
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-front-end
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-quotes
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-newsfeed-newsfeed
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-alb
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-vpc
-          aws cloudformation delete-stack --stack-name $ENVIRONMENT-ec2-base-instance-profile
-          aws ssm delete-parameter --name "/$ENVIRONMENT/newsfeed/newsfeed-token"
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-newsfeed-front-end
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-newsfeed-quotes
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-newsfeed-newsfeed
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-alb
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-vpc
+          aws cloudformation delete-stack --stack-name ${{ env.ENVIRONMENT }}-ec2-base-instance-profile
+          aws ssm delete-parameter --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" || true
