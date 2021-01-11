@@ -1,6 +1,11 @@
 name: push
 
 on: [push]
+env:
+  AWS_DEFAULT_REGION: us-west-2
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  NEWSFEED_TOKEN: ${{ secrets.NEWSFEED_TOKEN }}
 
 jobs:
   lint:
@@ -19,23 +24,18 @@ jobs:
     
     steps:     
       - name: Check and set newsfeed token parameter
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-west-2
-          NEWSFEED_TOKEN: ${{ secrets.NEWSFEED_TOKEN }}
         run: |
           token=$(aws ssm get-parameters \
-            --names /local/newsfeed/newsfeed-token \
+            --names /$ENVIRONMENT/newsfeed/newsfeed-token \
             --with-decryption \
             --output text --query "Parameters[].Value")
           if [ -z "$token" ]; then
-            aws ssm put-parameter --type SecureString --name '/local/newsfeed/newsfeed-token' --value "$NEWSFEED_TOKEN"
+            aws ssm put-parameter --type SecureString --name "/$ENVIRONMENT/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
           else
             if [ $token != $NEWSFEED_TOKEN ]; then
               echo "SSM Parameter for token exists, but is not the same as environment variable provided token - recreating parameter."
-              aws ssm delete-parameter --name '/local/newsfeed/newsfeed-token'
-              aws ssm put-parameter --type SecureString --name '/local/newsfeed/newsfeed-token' --value "$NEWSFEED_TOKEN"
+              aws ssm delete-parameter --name "/$ENVIRONMENT/newsfeed/newsfeed-token"
+              aws ssm put-parameter --type SecureString --name "/$ENVIRONMENT/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
             else
               echo "Newsfeed token SSM parameter already exists."
             fi
@@ -52,49 +52,62 @@ jobs:
         id: creds
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          #aws-region: ${{ github.event.inputs.region}}
-          aws-region: us-west-2
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
       - name: Deploy IAM Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-ec2-base-instance-profile
+          name: ${{ env.ENVIRONMENT }}-ec2-base-instance-profile
           template: ./templates/instance-profile.yaml
           no-fail-on-empty-changeset: "1"
           capabilities: 'CAPABILITY_NAMED_IAM'
       - name: Deploy VPC Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-vpc
+          name: ${{ env.ENVIRONMENT }}-vpc
           template: ./templates/environment.yaml
-          parameter-overrides: file://${{ github.workspace }}/parameters/local.json
+          parameter-overrides: file://${{ github.workspace }}/parameters/${{ env.ENVIRONMENT }}.json
           no-fail-on-empty-changeset: "1"
       - name: Deploy ALB Stack
+        id: deploy_alb_stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-alb
+          name: ${{ env.ENVIRONMENT }}-alb
           template: ./templates/alb.yaml
-          #parameter-overrides: file://${{ github.workspace }}/parameters/local.json
           no-fail-on-empty-changeset: "1"
       - name: Deploy Quotes Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-newsfeed-quotes
+          name: ${{ env.ENVIRONMENT }}-newsfeed-quotes
           template: ./templates/ec2.yaml
           parameter-overrides: "ServiceName=quotes,ListenerRulePriority=100"
           no-fail-on-empty-changeset: "1"
       - name: Deploy Newsfeed Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-newsfeed-newsfeed
+          name: ${{ env.ENVIRONMENT }}-newsfeed-newsfeed
           template: ./templates/ec2.yaml
           parameter-overrides: "ServiceName=newsfeed,ListenerRulePriority=200"
           no-fail-on-empty-changeset: "1"
       - name: Deploy Front-end Stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: local-newsfeed-front-end
+          name: ${{ env.ENVIRONMENT }}-newsfeed-front-end
           template: ./templates/ec2.yaml
           parameter-overrides: "ServiceName=front-end,ListenerRulePriority=100"
           no-fail-on-empty-changeset: "1"
+      - name: Warm up app
+        timeout-minutes: 10
+        run: |
+          echo "Waiting up to 10 minutes for app to return a 200 response."
+          while [ $(curl -s -o /dev/null -w "%{http_code}" http://${{ steps.deploy_alb_stack.outputs.ExternalALBDnsName }}) -ne 200 ]; do
+            resp=$(curl -s -o /dev/null -w "%{http_code}" http://${{ steps.deploy_alb_stack.outputs.ExternalALBDnsName }})
+            if [ $resp -ne 200 ]; then
+              echo "Received a $resp status code from http://${{ steps.deploy_alb_stack.outputs.ExternalALBDnsName }} - sleeping for 10 seconds"
+              sleep 10
+            fi
+          done
+      - name: Output ALB DNS
+        run: |
+          echo "To view your newsfeed go to: http://${{ steps.deploy_alb_stack.outputs.ExternalALBDnsName }}"
