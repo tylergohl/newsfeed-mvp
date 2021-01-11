@@ -31,12 +31,12 @@ jobs:
             --with-decryption \
             --output text --query "Parameters[].Value")
           if [ -z "$token" ]; then
-            aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
+            aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "${{ secrets.NEWSFEED_TOKEN }}"
           else
-            if [ $token != $NEWSFEED_TOKEN ]; then
+            if [ $token != ${{ secrets.NEWSFEED_TOKEN }} ]; then
               echo "SSM Parameter for token exists, but is not the same as environment variable provided token - recreating parameter."
               aws ssm delete-parameter --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token"
-              aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
+              aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "${{ secrets.NEWSFEED_TOKEN }}"
             else
               echo "Newsfeed token SSM parameter already exists."
             fi
