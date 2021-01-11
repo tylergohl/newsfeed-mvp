@@ -27,16 +27,16 @@ jobs:
       - name: Check and set newsfeed token parameter
         run: |
           token=$(aws ssm get-parameters \
-            --names /$ENVIRONMENT/newsfeed/newsfeed-token \
+            --names /${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token \
             --with-decryption \
             --output text --query "Parameters[].Value")
           if [ -z "$token" ]; then
-            aws ssm put-parameter --type SecureString --name "/$ENVIRONMENT/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
+            aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
           else
             if [ $token != $NEWSFEED_TOKEN ]; then
               echo "SSM Parameter for token exists, but is not the same as environment variable provided token - recreating parameter."
-              aws ssm delete-parameter --name "/$ENVIRONMENT/newsfeed/newsfeed-token"
-              aws ssm put-parameter --type SecureString --name "/$ENVIRONMENT/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
+              aws ssm delete-parameter --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token"
+              aws ssm put-parameter --type SecureString --name "/${{ env.ENVIRONMENT }}/newsfeed/newsfeed-token" --value "$NEWSFEED_TOKEN"
             else
               echo "Newsfeed token SSM parameter already exists."
             fi
